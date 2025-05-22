@@ -4518,6 +4518,8 @@ elem* ExpressionsToStaticArray(ref IRState irs, Loc loc, Expressions* exps, Symb
  */
 elem* toElemCast(CastExp ce, elem* e, bool isLvalue, ref IRState irs)
 {
+    // printf("lowering pointer: %p\n", ce.lowering);
+    // printf("Castexpr e2ir ptr: %p\n", ce);
     tym_t ftym;
     tym_t ttym;
     OPER eop;
@@ -4697,6 +4699,12 @@ elem* toElemCast(CastExp ce, elem* e, bool isLvalue, ref IRState irs)
             e = el_bin(OPcomma, TYnptr, e, el_long(TYnptr, 0));
             return Lret(ce, e);
         }
+        else if (ce.lowering)
+        {
+            printf("ceva: %s\n", ce.lowering.toChars());
+            e = toElem(ce.lowering, irs);
+            // printf("cdfrom: %s cdto: %s\n", cdfrom.toChars(), cdto.toChars());
+        }
         else
         {
             /* The offset from cdfrom => cdto can only be determined at runtime.
@@ -4752,8 +4760,36 @@ elem* toElemCast(CastExp ce, elem* e, bool isLvalue, ref IRState irs)
                 // _d_class_cast(e, cdto);
                 rtl = RTLSYM.CLASS_CAST;
             }
-            elem* ep = el_param(el_ptr(toExtSymbol(cdto)), e);
-            e = el_bin(OPcall, TYnptr, el_var(getRtlsym(rtl)), ep);
+
+            // if (rtl == RTLSYM.INTERFACE_CAST)
+            // {
+            //     printf("RTLSYM.INTERFACE_CAST\n");
+            // }
+            // else if (rtl == RTLSYM.CLASS_CAST)
+            // {
+            //     printf("RTLSYM.CLASS_CAST\n");
+            // }
+            // else if (rtl == RTLSYM.PAINT_CAST)
+            // {
+            //     printf("RTLSYM.PAINT_CAST\n");
+            // }
+            // else
+            // {
+            //     printf("RTLSYM.DYNAMIC_CAST\n");
+            // }
+
+            // printf("Yogurt\n");
+            if (rtl == RTLSYM.DYNAMIC_CAST){
+                // printf("cdfrom: %s cdto: %s\n", cdfrom.toChars(), cdto.toChars());
+                // printf("ce: %s\n", ce.toChars());
+                // printf("ce loc: %s\n", ce.loc.toChars());
+                assert(ce.lowering !is null, "This case should have been rewritten to `_d_dynamic_cast` in the semantic phase");
+                e = toElem(ce.lowering, irs);
+            }
+            else{
+                elem* ep = el_param(el_ptr(toExtSymbol(cdto)), e);
+                e = el_bin(OPcall, TYnptr, el_var(getRtlsym(rtl)), ep);
+            }
         }
         return Lret(ce, e);
     }

@@ -338,6 +338,7 @@ elem* getEthis(Loc loc, ref IRState irs, Dsymbol fd, Dsymbol fdp = null, Dsymbol
         if (!irs.sthis)                // if no frame pointer for this function
         {
             irs.eSink.error(loc, "`%s` is a nested function and cannot be accessed from `%s`", fd.toChars(), irs.getFunc().toPrettyChars());
+            assert(0);
             return el_long(TYnptr, 0); // error recovery
         }
 

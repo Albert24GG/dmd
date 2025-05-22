@@ -101,20 +101,20 @@ void* _d_interface_cast(void* p, ClassInfo c)
  * Returns:
  *      null if o is null or c is not a subclass of o. Otherwise, return o.
  */
-void* _d_dynamic_cast(Object o, ClassInfo c)
-{
-    debug(cast_) printf("_d_dynamic_cast(o = %p, c = '%.*s')\n", o, cast(int) c.name.length, c.name.ptr);
-
-    void* res = null;
-    size_t offset = 0;
-    if (o && _d_isbaseof2(typeid(o), c, offset))
-    {
-        debug(cast_) printf("\toffset = %zd\n", offset);
-        res = cast(void*) o + offset;
-    }
-    debug(cast_) printf("\tresult = %p\n", res);
-    return res;
-}
+// void* _d_dynamic_cast(Object o, ClassInfo c)
+// {
+//     debug(cast_) printf("_d_dynamic_cast(o = %p, c = '%.*s')\n", o, cast(int) c.name.length, c.name.ptr);
+//
+//     void* res = null;
+//     size_t offset = 0;
+//     if (o && _d_isbaseof2(typeid(o), c, offset))
+//     {
+//         debug(cast_) printf("\toffset = %zd\n", offset);
+//         res = cast(void*) o + offset;
+//     }
+//     debug(cast_) printf("\tresult = %p\n", res);
+//     return res;
+// }
 
 /*****
  * Dynamic cast from a class object o to class c, where c is a subclass of o.

@@ -2278,8 +2278,14 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         }
 
     Lok:
+        // TODO: Posibil
         auto result = new CastExp(e.loc, e, t);
         result.type = t; // Don't call semantic()
+        if (auto ce = e.isCastExp())
+        {
+            result.lowering = ce.lowering;
+            // printf("lowering ptr in dcast: %p\n", result.lowering);
+        }
         //printf("Returning: %s\n", result.toChars());
         return result;
     }

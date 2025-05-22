@@ -9214,6 +9214,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 return setError();
         }
 
+        // TODO: Posibil verificat
         Expression ex = exp.e1.castTo(sc, exp.to);
         if (ex.op == EXP.error)
         {
@@ -9320,6 +9321,90 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 ex.type = exp.to;
             }
         }
+
+        // TODO
+        Type tfrom = exp.e1.type.toBasetype();
+        Type t = exp.to.toBasetype();
+        TY fty = tfrom.ty;
+        TY tty = t.ty;
+
+        if (fty == Tclass && tty == Tclass)
+        {
+            CastExp cex = cast(CastExp)ex;
+            ClassDeclaration cdfrom = tfrom.isClassHandle();
+            ClassDeclaration cdto   = t.isClassHandle();
+
+            int offset;
+            if (!(cdto.isBaseOf(cdfrom, &offset) && offset != ClassDeclaration.OFFSET_RUNTIME)
+                    && !cdfrom.classKind == ClassKind.cpp)
+            {
+                import dmd.backend.rtlsym;
+
+                /* The offset from cdfrom => cdto can only be determined at runtime.
+                * Cases:
+                *  - class     => derived class (downcast)
+                *  - interface => derived class (downcast)
+                *  - class     => foreign interface (cross cast)
+                *  - interface => base or foreign interface (cross cast)
+                */
+                auto rtl = cdfrom.isInterfaceDeclaration()
+                            ? RTLSYM.INTERFACE_CAST
+                            : RTLSYM.DYNAMIC_CAST;
+
+                /* Check for:
+                *  class A { }
+                *  final class B : A { }
+                *  ... cast(B) A ...
+                */
+                if (rtl == RTLSYM.DYNAMIC_CAST &&
+                    cdto.storage_class & STC.final_ &&
+                    cdto.baseClass == cdfrom &&
+                    (!cdto.interfaces || cdto.interfaces.length == 0) &&
+                    (!cdfrom.interfaces || cdfrom.interfaces.length == 0))
+                {
+                    /* do shortcut cast: if e is an instance of B, then it's just a type paint
+                    */
+                    //printf("cdfrom: %s cdto: %s\n", cdfrom.toChars(), cdto.toChars());
+                    rtl = RTLSYM.PAINT_CAST;
+                }
+                else if (rtl == RTLSYM.DYNAMIC_CAST &&
+                        !cdto.isInterfaceDeclaration())
+                {
+                    // _d_class_cast(e, cdto);
+                    rtl = RTLSYM.CLASS_CAST;
+                }
+
+                if (rtl == RTLSYM.DYNAMIC_CAST)
+                {
+
+                    Identifier hook = Id._d_dynamic_cast;
+                    if (!verifyHookExist(cex.loc, *sc, hook, "dynamic cast", Id.object))
+                        goto LskipCastLowering;
+
+                    // Lower to .object._d_dynamic_cast!(TTo)(exp.e1)
+                    Expression lowering = new IdentifierExp(cex.loc, Id.empty);
+                    lowering = new DotIdExp(cex.loc, lowering, Id.object);
+
+                    auto tiargs = new Objects();
+                    tiargs.push(t);
+                    lowering = new DotTemplateInstanceExp(cex.loc, lowering, hook, tiargs);
+
+                    auto arguments = new Expressions();
+                    // arguments.push(exp.e1);
+                    arguments.push(cex.e1);
+
+                    lowering = new CallExp(cex.loc, lowering, arguments);
+
+                    cex.lowering = lowering.expressionSemantic(sc);
+                    // printf("CastExp::semantic('%s')\n", exp.toChars());
+                    // printf("lowering ptr: %p\n", exp.lowering);
+                    // printf("Castexpr espressionsem ptr: %p\n", exp);
+                }
+            }
+        }
+
+    LskipCastLowering:
+
         result = ex;
     }
 
