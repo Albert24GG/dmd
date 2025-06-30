@@ -13527,7 +13527,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 __equals = ErrorExp.get();
             }
 
-            result = __equals;
+            exp.lowering = __equals;
+            result = exp;
             return;
         }
 
