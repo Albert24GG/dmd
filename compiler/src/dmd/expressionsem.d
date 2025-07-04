@@ -13494,14 +13494,38 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return false;
         }
 
-        if (auto e = exp.opOverloadEqual(sc, aliasThisStop))
+        const isArrayComparison = t1.isStaticOrDynamicArray() && t2.isStaticOrDynamicArray();
+        const needsArrayLowering = isArrayComparison && !shouldUseMemcmp(t1, t2, sc);
+
+        if (isArrayComparison)
+        {
+            Type t1n = t1.nextOf().toBasetype();
+
+            if (t1n.ty == Tvoid)
+            {
+                t1n = Type.tuns8;
+            }
+
+            Type t2n = t2.nextOf().toBasetype();
+            if (t2n.ty == Tvoid)
+            {
+                t2n = Type.tuns8;
+            }
+
+            auto ee = new EqualExp(EXP.equal, exp.loc, t1n.defaultInitLiteral(exp.loc),
+                                   t2n.defaultInitLiteral(exp.loc));
+            printf("ee: %s\n", ee.toChars());
+            if (auto e = ee.opOverloadEqual(sc, aliasThisStop))
+            {
+                result = e;
+                return;
+            }
+        }
+        else if (auto e = exp.opOverloadEqual(sc, aliasThisStop))
         {
             result = e;
             return;
         }
-
-        const isArrayComparison = t1.isStaticOrDynamicArray() && t2.isStaticOrDynamicArray();
-        const needsArrayLowering = isArrayComparison && !shouldUseMemcmp(t1, t2, sc);
 
         if (!isArrayComparison || unifyArrayTypes(t1, t2, sc))
         {
