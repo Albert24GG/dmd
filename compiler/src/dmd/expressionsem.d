@@ -3882,6 +3882,31 @@ private extern(C++) final class IsMemcmpableVisitor : Visitor
     }
 }
 
+Expression lowerArrayLiteral(ArrayLiteralExp ale, Scope* sc)
+{
+        const dim = ale.elements ? ale.elements.length : 0;
+
+        Identifier hook = global.params.tracegc ? Id._d_arrayliteralTXTrace : Id._d_arrayliteralTX;
+        if (!verifyHookExist(ale.loc, *sc, hook, "creating array literals"))
+            return null;
+
+        Expression lowering = new IdentifierExp(ale.loc, Id.empty);
+        lowering = new DotIdExp(ale.loc, lowering, Id.object);
+        auto tiargs = new Objects();
+        // Remove `inout`, `const`, `immutable` and `shared` to reduce template instances
+        auto t = ale.type.unqualify(MODFlags.wild | MODFlags.const_ | MODFlags.immutable_ | MODFlags.shared_);
+        tiargs.push(t);
+        lowering = new DotTemplateInstanceExp(ale.loc, lowering, hook, tiargs);
+
+        auto arguments = new Expressions();
+        arguments.push(new IntegerExp(dim));
+
+        lowering = new CallExp(ale.loc, lowering, arguments);
+        ale.lowering = lowering.expressionSemantic(sc);
+
+        return ale.lowering;
+}
+
 private extern (C++) final class ExpressionSemanticVisitor : Visitor
 {
     alias visit = Visitor.visit;
@@ -4649,13 +4674,21 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         auto tiargs = new Objects(keytype, valtype);
         hookFunc = new DotTemplateInstanceExp(aaExp.loc, hookFunc, hookId, tiargs);
         auto arguments = new Expressions();
-        arguments.push(new ArrayLiteralExp(aaExp.loc, keytype.arrayOf(), aaExp.keys));
-        arguments.push(new ArrayLiteralExp(aaExp.loc, valtype.arrayOf(), aaExp.values));
+        auto ale1 = new ArrayLiteralExp(aaExp.loc, keytype.arrayOf(), aaExp.keys);
+        auto ale2 = new ArrayLiteralExp(aaExp.loc, valtype.arrayOf(), aaExp.values);
+        arguments.push(ale1);
+        arguments.push(ale2);
         Expression loweredExp = new CallExp(aaExp.loc, hookFunc, arguments);
         loweredExp = loweredExp.expressionSemantic(sc);
-        // lowering arguments to _d_arrayliteralTX is a side-effect of checking @nogc,
-        // but is not run, because the type is already set
-        checkGC(loweredExp, sc);
+
+        const dbg_ = sc.debug_;
+        // Gag potential errors/warnings during expressionSemantic(
+        // on the array literal lowerings
+        sc.debug_ = true;
+        lowerArrayLiteral(ale1, sc);
+        lowerArrayLiteral(ale2, sc);
+        sc.debug_ = dbg_;
+
         loweredExp = resolveProperties(sc, loweredExp);
         aaExp.lowering = loweredExp;
 
