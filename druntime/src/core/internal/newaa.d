@@ -698,18 +698,18 @@ auto _aaKeys(K, V)(inout V[K] a)
     if (aa.empty)
         return null;
 
-    static if (__traits(compiles, { K key = aa.buckets[0].entry.key; } ))
-        K[] res; // if key has no const indirections
-    else
-        typeof([aa.buckets[0].entry.key]) res; // as mutable as it can get
-    static if (__traits(compiles, { res.reserve(aa.length); } ))
-        res.reserve(aa.length); // does not work on inout(void)[]
+    alias UK = Unconstify!K;
+    UK[] res = new UK[aa.length];
 
+    size_t i = 0;
     foreach (b; aa.buckets[aa.firstUsed .. $])
     {
         if (!b.filled)
             continue;
-        res ~= b.entry.key;
+        UK* ekp = () @trusted {
+            return cast(UK*)&b.entry.key;
+        }();
+        res[i++] = *ekp;
     }
     return res;
 }
